@@ -2,6 +2,9 @@
 
 A professional Ground Control Station (GCS) application for hybrid VTOL (Vertical Take-Off and Landing) UAV delivery missions, built with PyQt6 and real-time 3D visualization.
 
+![System Architecture](data_flow_diagram.png)
+*System Data Flow Architecture - Complete overview of timers, core logic, UI components, and data flow*
+
 ## 🚁 Overview
 
 This project is a fully autonomous mission control system designed for hybrid VTOL drones to perform delivery missions. The drone takes off vertically, cruises to a delivery point following custom waypoints, lands to deliver the package, and returns home autonomously - all while avoiding obstacles and maintaining safe flight parameters.
