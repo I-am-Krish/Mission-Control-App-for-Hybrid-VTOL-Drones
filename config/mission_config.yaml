@@ -1,0 +1,119 @@
+# ========================================
+# Mission Configuration File
+# VTOL Drone Mission Control System
+# ========================================
+
+# UAV Parameters
+uav:
+  battery_capacity: 1500  # mAh
+  cruise_current: 120     # mAh/min
+  vtol_current: 220       # mAh/min
+  battery_critical: 250   # mAh
+  
+  cruise_speed: 28.0      # m/s
+  vtol_speed: 3.0         # m/s
+  
+  takeoff_altitude: 120   # m
+  min_turn_radius: 300    # m
+  max_climb_rate: 5.0     # m/s
+  max_descent_rate: 3.0   # m/s
+
+# Mission Settings
+mission:
+  home_location: [0.0, 0.0, 0.0]
+  delivery_point: [5500.0, 700.0, 0.0]
+  
+  waypoint_tolerance: 10.0   # m
+  altitude_tolerance: 5.0    # m
+  max_waypoints: 100
+  
+  energy_weight: 0.6
+  time_weight: 0.4
+
+# Guidance Parameters
+guidance:
+  lookahead_distance: 1200  # m
+  front_cone_angle: 60      # degrees
+  turn_bias_gain: 0.9
+  smooth_factor: 0.15
+  obstacle_buffer: 50       # m
+  sample_time: 0.1          # seconds
+
+# Simulation Settings
+simulation:
+  enabled: true
+  px4_host: "127.0.0.1"
+  px4_port: 14540
+  mavlink_port: 14550
+  
+  gazebo_world: "default"
+  physics_engine: "ode"
+  real_time_factor: 1.0
+  
+  enable_3d_viz: true
+  update_rate: 30  # Hz
+
+# ROS 2 Configuration
+ros2:
+  enabled: false
+  node_name: "vtol_mission_control"
+  namespace: "/uav"
+  
+  topics:
+    telemetry: "/uav/telemetry"
+    waypoint: "/uav/waypoint"
+    status: "/uav/status"
+    battery: "/uav/battery"
+  
+  qos_depth: 10
+  qos_reliable: true
+
+# 3D Mapping
+mapping:
+  voxel_size: 0.05          # m
+  max_points: 10000000
+  min_images: 3
+  max_reprojection_error: 4  # pixels
+  
+  lidar_range: 100           # m
+  lidar_resolution: 0.01     # degrees
+
+# User Interface
+ui:
+  window_title: "VTOL Mission Control - GCS"
+  window_width: 1920
+  window_height: 1080
+  min_width: 1280
+  min_height: 720
+  
+  theme: "dark"
+  accent_color: "#00AAFF"
+  
+  fov: 60
+  near_clip: 0.1
+  far_clip: 100000
+  
+  telemetry_update_hz: 10
+  map_update_hz: 5
+  ui_refresh_hz: 30
+
+# Security & Safety
+security:
+  require_signature: false  # Set true for production
+  session_timeout: 3600     # seconds
+  
+  enforce_geofence: true
+  max_altitude: 500         # m AGL
+  max_distance: 10000       # m from home
+  
+  auto_rtl_on_signal_loss: true
+  signal_loss_timeout: 5    # seconds
+  auto_land_on_critical_battery: true
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_telemetry: true
+  log_commands: true
+  log_path: "logs/"
+  max_log_size_mb: 100

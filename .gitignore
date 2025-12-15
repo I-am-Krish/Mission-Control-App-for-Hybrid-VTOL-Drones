@@ -1,0 +1,84 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Qt
+*.qmlc
+*.jsc
+*.pro.user
+
+# Mission data
+data/
+
+# Documentation (temporary guides)
+Documents/
+ARCHITECTURE.md
+FEATURES_GUIDE.md
+GETTING_STARTED.md
+INSTALL.md
+NEW_FEATURES.md
+PROJECT_REPORT.md
+START_HERE.md
+docs/
+*.mission
+*.bin
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ROS
+devel/
+build_isolated/
+devel_isolated/
+
+# PX4
+PX4-Autopilot/

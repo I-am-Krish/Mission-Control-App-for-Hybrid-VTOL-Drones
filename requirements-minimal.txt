@@ -1,0 +1,23 @@
+# ========================================
+# MINIMAL REQUIREMENTS - Core functionality only
+# Use this if requirements.txt has installation issues
+# ========================================
+
+# Core GUI Framework
+PyQt6>=6.6.0
+
+# 3D Visualization & Graphics
+matplotlib>=3.8.0
+
+# Numerical Computing
+numpy>=1.26.0
+scipy>=1.11.0
+
+# Configuration
+pyyaml>=6.0
+
+# Logging
+loguru>=0.7.0
+
+# Testing
+pytest>=7.4.0
