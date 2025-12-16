@@ -87,6 +87,157 @@ class MissionControlWindow(QMainWindow):
         self.setGeometry(100, 100, UIConfig.WINDOW_WIDTH, UIConfig.WINDOW_HEIGHT)
         self.setMinimumSize(UIConfig.MIN_WIDTH, UIConfig.MIN_HEIGHT)
         
+        # Apply Solarized Dark color scheme
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #002b36;
+            }
+            QWidget {
+                background-color: #002b36;
+                color: #839496;
+            }
+            QSplitter::handle {
+                background-color: #073642;
+                width: 2px;
+            }
+            QSplitter::handle:hover {
+                background-color: #268bd2;
+            }
+            QGroupBox {
+                border: 2px solid #268bd2;
+                border-radius: 5px;
+                margin-top: 10px;
+                font-weight: bold;
+                color: #93a1a1;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+                color: #268bd2;
+            }
+            QLabel {
+                color: #93a1a1;
+            }
+            QPushButton {
+                background-color: #268bd2;
+                color: #fdf6e3;
+                border: none;
+                padding: 8px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2aa198;
+            }
+            QPushButton:pressed {
+                background-color: #073642;
+            }
+            QPushButton:disabled {
+                background-color: #073642;
+                color: #586e75;
+            }
+            QLineEdit, QSpinBox, QDoubleSpinBox {
+                background-color: #073642;
+                color: #93a1a1;
+                border: 1px solid #268bd2;
+                border-radius: 3px;
+                padding: 5px;
+                selection-background-color: #268bd2;
+            }
+            QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {
+                border: 2px solid #2aa198;
+            }
+            QTextEdit, QListWidget {
+                background-color: #073642;
+                color: #93a1a1;
+                border: 1px solid #268bd2;
+                border-radius: 3px;
+            }
+            QTabWidget::pane {
+                border: 1px solid #268bd2;
+                background-color: #002b36;
+            }
+            QTabBar::tab {
+                background-color: #073642;
+                color: #93a1a1;
+                border: 1px solid #268bd2;
+                padding: 8px 12px;
+                margin-right: 2px;
+            }
+            QTabBar::tab:selected {
+                background-color: #268bd2;
+                color: #fdf6e3;
+            }
+            QTabBar::tab:hover {
+                background-color: #2aa198;
+                color: #fdf6e3;
+            }
+            QProgressBar {
+                border: 1px solid #268bd2;
+                border-radius: 3px;
+                text-align: center;
+                background-color: #073642;
+                color: #93a1a1;
+            }
+            QProgressBar::chunk {
+                background-color: #859900;
+            }
+            QScrollBar:vertical {
+                background-color: #073642;
+                width: 12px;
+                border: 1px solid #268bd2;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #268bd2;
+                border-radius: 4px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #2aa198;
+            }
+            QScrollBar:horizontal {
+                background-color: #073642;
+                height: 12px;
+                border: 1px solid #268bd2;
+            }
+            QScrollBar::handle:horizontal {
+                background-color: #268bd2;
+                border-radius: 4px;
+                min-width: 20px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background-color: #2aa198;
+            }
+            QMenuBar {
+                background-color: #002b36;
+                color: #93a1a1;
+            }
+            QMenuBar::item:selected {
+                background-color: #268bd2;
+                color: #fdf6e3;
+            }
+            QMenu {
+                background-color: #073642;
+                color: #93a1a1;
+                border: 1px solid #268bd2;
+            }
+            QMenu::item:selected {
+                background-color: #268bd2;
+                color: #fdf6e3;
+            }
+            QStatusBar {
+                background-color: #073642;
+                color: #93a1a1;
+            }
+            QToolBar {
+                background-color: #073642;
+                border: 1px solid #268bd2;
+                spacing: 3px;
+            }
+        """)
+        
         # Create menu bar
         self.create_menu_bar()
         
@@ -121,8 +272,8 @@ class MissionControlWindow(QMainWindow):
         # Connect map widget signals to mission panel (after both are created)
         self.map_widget.waypoint_added.connect(self.mission_panel.update_waypoint_list)
         
-        # Set splitter sizes (ratios) - MUCH bigger map!
-        main_splitter.setSizes([270, 2200, 250])
+        # Set splitter sizes (ratios) - Expanded right panel for better accessibility
+        main_splitter.setSizes([270, 1930, 400])
         
         main_layout.addWidget(main_splitter)
         
@@ -190,17 +341,17 @@ class MissionControlWindow(QMainWindow):
         self.arm_button.setCheckable(True)
         self.arm_button.setStyleSheet("""
             QPushButton {
-                background-color: #197278;
-                color: #EDDDD4;
+                background-color: #268bd2;
+                color: #fdf6e3;
                 font-weight: bold;
                 padding: 10px;
             }
             QPushButton:hover {
-                background-color: #1A8289;
+                background-color: #2aa198;
             }
             QPushButton:checked {
-                background-color: #4CAF50;
-                color: white;
+                background-color: #859900;
+                color: #fdf6e3;
             }
         """)
         self.arm_button.clicked.connect(self.toggle_arm)
@@ -212,13 +363,13 @@ class MissionControlWindow(QMainWindow):
         start_btn = QPushButton("START MISSION")
         start_btn.setStyleSheet("""
             QPushButton {
-                background-color: #197278;
-                color: #EDDDD4;
+                background-color: #859900;
+                color: #fdf6e3;
                 font-weight: bold;
                 padding: 10px;
             }
             QPushButton:hover {
-                background-color: #1A8289;
+                background-color: #b58900;
             }
         """)
         start_btn.clicked.connect(self.start_mission)
@@ -228,13 +379,13 @@ class MissionControlWindow(QMainWindow):
         rtl_btn = QPushButton("RETURN TO HOME")
         rtl_btn.setStyleSheet("""
             QPushButton {
-                background-color: #772E25;
-                color: #EDDDD4;
+                background-color: #cb4b16;
+                color: #fdf6e3;
                 font-weight: bold;
                 padding: 10px;
             }
             QPushButton:hover {
-                background-color: #8A3529;
+                background-color: #dc322f;
             }
         """)
         rtl_btn.clicked.connect(self.return_to_home)
@@ -244,13 +395,13 @@ class MissionControlWindow(QMainWindow):
         emergency_btn = QPushButton("EMERGENCY LAND")
         emergency_btn.setStyleSheet("""
             QPushButton {
-                background-color: #C44536;
-                color: #EDDDD4;
+                background-color: #dc322f;
+                color: #fdf6e3;
                 font-weight: bold;
                 padding: 10px;
             }
             QPushButton:hover {
-                background-color: #D44F3C;
+                background-color: #d33682;
             }
         """)
         emergency_btn.clicked.connect(self.emergency_land)

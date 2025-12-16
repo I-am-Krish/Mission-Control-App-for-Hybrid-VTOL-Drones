@@ -76,15 +76,15 @@ class UAVSettingsPanel(QWidget):
         apply_btn = QPushButton("✅ Apply Settings")
         apply_btn.setStyleSheet("""
             QPushButton {
-                background-color: #197278;
-                color: #EDDDD4;
+                background-color: #268bd2;
+                color: #fdf6e3;
                 font-size: 14pt;
                 font-weight: bold;
                 padding: 10px;
                 border-radius: 5px;
             }
             QPushButton:hover {
-                background-color: #1A8289;
+                background-color: #2aa198;
             }
         """)
         apply_btn.clicked.connect(self.apply_settings)
@@ -94,15 +94,15 @@ class UAVSettingsPanel(QWidget):
         reset_btn = QPushButton("🔄 Reset to Defaults")
         reset_btn.setStyleSheet("""
             QPushButton {
-                background-color: #C44536;
-                color: #EDDDD4;
+                background-color: #cb4b16;
+                color: #fdf6e3;
                 font-size: 14pt;
                 font-weight: bold;
                 padding: 10px;
                 border-radius: 5px;
             }
             QPushButton:hover {
-                background-color: #D44F3C;
+                background-color: #dc322f;
             }
         """)
         reset_btn.clicked.connect(self.reset_to_defaults)

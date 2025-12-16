@@ -33,15 +33,15 @@ class ControlPanel(QWidget):
         self.takeoff_btn = QPushButton("TAKEOFF")
         self.takeoff_btn.setStyleSheet("""
             QPushButton {
-                background-color: #197278;
-                color: #EDDDD4;
+                background-color: #859900;
+                color: #fdf6e3;
                 font-weight: bold;
                 padding: 15px;
                 font-size: 12pt;
                 border-radius: 5px;
             }
             QPushButton:hover {
-                background-color: #1A8289;
+                background-color: #b58900;
             }
         """)
         self.takeoff_btn.clicked.connect(self.takeoff_requested.emit)
@@ -51,15 +51,15 @@ class ControlPanel(QWidget):
         self.land_btn = QPushButton("LAND")
         self.land_btn.setStyleSheet("""
             QPushButton {
-                background-color: #772E25;
-                color: #EDDDD4;
+                background-color: #cb4b16;
+                color: #fdf6e3;
                 font-weight: bold;
                 padding: 15px;
                 font-size: 12pt;
                 border-radius: 5px;
             }
             QPushButton:hover {
-                background-color: #8A3529;
+                background-color: #dc322f;
             }
         """)
         self.land_btn.clicked.connect(self.land_requested.emit)

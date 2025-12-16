@@ -98,7 +98,7 @@ class MissionPanel(QWidget):
         
         add_quick_btn = QPushButton("➕ Add Waypoint")
         add_quick_btn.clicked.connect(self.add_waypoint_from_input)
-        add_quick_btn.setStyleSheet("background-color: #197278; color: #EDDDD4; font-weight: bold; padding: 8px; border-radius: 4px;")
+        add_quick_btn.setStyleSheet("background-color: #268bd2; color: #fdf6e3; font-weight: bold; padding: 8px; border-radius: 4px;")
         input_layout.addWidget(add_quick_btn, 3, 0, 1, 2)
         
         input_group.setLayout(input_layout)
@@ -167,7 +167,7 @@ class MissionPanel(QWidget):
         
         add_obstacle_btn = QPushButton("➕ Add Obstacle")
         add_obstacle_btn.clicked.connect(self.add_custom_obstacle)
-        add_obstacle_btn.setStyleSheet("background-color: #197278; color: #EDDDD4; font-weight: bold; padding: 8px; border-radius: 4px;")
+        add_obstacle_btn.setStyleSheet("background-color: #268bd2; color: #fdf6e3; font-weight: bold; padding: 8px; border-radius: 4px;")
         add_obs_layout.addWidget(add_obstacle_btn, 4, 0, 1, 2)
         
         add_obs_group.setLayout(add_obs_layout)
@@ -184,7 +184,7 @@ class MissionPanel(QWidget):
         # Remove obstacle button
         remove_obs_btn = QPushButton("🗑️ Remove Selected")
         remove_obs_btn.clicked.connect(self.remove_selected_obstacle)
-        remove_obs_btn.setStyleSheet("background-color: #C44536; color: #EDDDD4; font-weight: bold; padding: 8px; border-radius: 4px;")
+        remove_obs_btn.setStyleSheet("background-color: #dc322f; color: #fdf6e3; font-weight: bold; padding: 8px; border-radius: 4px;")
         obs_layout.addWidget(remove_obs_btn)
         
         obs_group.setLayout(obs_layout)
@@ -216,7 +216,7 @@ class MissionPanel(QWidget):
         
         add_nfz_btn = QPushButton("➕ Add No-Fly Zone")
         add_nfz_btn.clicked.connect(self.add_custom_nfz)
-        add_nfz_btn.setStyleSheet("background-color: #C44536; color: #EDDDD4; font-weight: bold; padding: 8px; border-radius: 4px;")
+        add_nfz_btn.setStyleSheet("background-color: #dc322f; color: #fdf6e3; font-weight: bold; padding: 8px; border-radius: 4px;")
         add_nfz_layout.addWidget(add_nfz_btn, 4, 0, 1, 2)
         
         add_nfz_section.setLayout(add_nfz_layout)
@@ -230,7 +230,7 @@ class MissionPanel(QWidget):
         # Remove NFZ button
         remove_nfz_btn = QPushButton("🗑️ Remove Selected NFZ")
         remove_nfz_btn.clicked.connect(self.remove_selected_nfz)
-        remove_nfz_btn.setStyleSheet("background-color: #772E25; color: #EDDDD4; font-weight: bold; padding: 8px; border-radius: 4px;")
+        remove_nfz_btn.setStyleSheet("background-color: #cb4b16; color: #fdf6e3; font-weight: bold; padding: 8px; border-radius: 4px;")
         nfz_layout.addWidget(remove_nfz_btn)
         
         nfz_group.setLayout(nfz_layout)
