@@ -22,21 +22,54 @@ class TelemetryPanel(QWidget):
         super().__init__(parent)
         self.mission_data = mission_data
         
+        # Initialize trajectory score labels (used by both UI loading paths)
+        self.score_safety_label = None
+        self.score_energy_label = None
+        self.score_progress_label = None
+        self.score_total_bar = None
+        
         # Try to load UI from .ui file first
         ui_path = os.path.join(os.path.dirname(__file__), '..', '..', 'ui', 'telemetry_panel.ui')
         if os.path.exists(ui_path):
             uic.loadUi(ui_path, self)
             print(f"✓ Loaded UI from {ui_path}")
+            # Add trajectory score group to existing UI
+            self._add_trajectory_score_group()
         else:
             # Fallback to manual UI creation
             print(f"⚠ .ui file not found, using manual UI")
             self.init_ui()
     
+    def _add_trajectory_score_group(self):
+        """Add trajectory score group to existing UI layout"""
+        # Find the main layout
+        main_layout = self.layout()
+        if main_layout is None:
+            return
+        
+        # Create and add the trajectory score group
+        score_group = self.create_trajectory_score_group()
+        
+        # Insert before the stretch at the end
+        # Find the stretch item and insert before it
+        count = main_layout.count()
+        if count > 0:
+            # Remove stretch if it exists
+            last_item = main_layout.itemAt(count - 1)
+            if last_item and last_item.spacerItem():
+                main_layout.removeItem(last_item)
+            
+            # Add trajectory group
+            main_layout.addWidget(score_group)
+            
+            # Re-add stretch
+            main_layout.addStretch()
+    
     def init_ui(self):
         """Initialize UI components (fallback if .ui file not found)"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
+        layout.setSpacing(5)  # Reduced base spacing since we'll add custom spacing
         
         # Title - BIGGER
         title = QLabel("TELEMETRY")
@@ -46,22 +79,27 @@ class TelemetryPanel(QWidget):
         title_font.setPointSize(16)  # Increased from 12
         title.setFont(title_font)
         layout.addWidget(title)
+        layout.addSpacing(10)  # Space after title
         
         # Position group
         pos_group = self.create_position_group()
         layout.addWidget(pos_group)
+        layout.addSpacing(15)  # Extra space between Position and Velocity
         
         # Velocity group
         vel_group = self.create_velocity_group()
         layout.addWidget(vel_group)
+        layout.addSpacing(15)  # Consistent spacing
         
         # Battery group
         battery_group = self.create_battery_group()
         layout.addWidget(battery_group)
+        layout.addSpacing(15)  # Extra space between Battery and Flight Status
         
         # Flight status group
         status_group = self.create_status_group()
         layout.addWidget(status_group)
+        layout.addSpacing(15)  # Extra space between Flight Status and Trajectory
         
         # Trajectory score group
         score_group = self.create_trajectory_score_group()
@@ -80,7 +118,10 @@ class TelemetryPanel(QWidget):
         group.setFont(group_font)
         
         grid = QGridLayout()
-        grid.setSpacing(8)
+        grid.setSpacing(12)
+        grid.setContentsMargins(10, 15, 10, 15)
+        grid.setVerticalSpacing(12)
+        grid.setHorizontalSpacing(15)
         
         # Create bigger fonts for labels and values
         label_font = QFont()
@@ -137,7 +178,10 @@ class TelemetryPanel(QWidget):
         group.setFont(group_font)
         
         grid = QGridLayout()
-        grid.setSpacing(8)
+        grid.setSpacing(12)
+        grid.setContentsMargins(10, 15, 10, 15)
+        grid.setVerticalSpacing(12)
+        grid.setHorizontalSpacing(15)
         
         label_font = QFont()
         label_font.setPointSize(11)
@@ -184,7 +228,8 @@ class TelemetryPanel(QWidget):
         group.setFont(group_font)
         
         layout = QVBoxLayout()
-        layout.setSpacing(8)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 15, 10, 15)
         
         # Battery percentage bar - BIGGER
         self.battery_bar = QProgressBar()
@@ -201,7 +246,9 @@ class TelemetryPanel(QWidget):
         
         # Battery details grid
         grid = QGridLayout()
-        grid.setSpacing(8)
+        grid.setSpacing(12)
+        grid.setVerticalSpacing(12)
+        grid.setHorizontalSpacing(15)
         
         label_font = QFont()
         label_font.setPointSize(11)
@@ -254,7 +301,10 @@ class TelemetryPanel(QWidget):
         group.setFont(group_font)
         
         grid = QGridLayout()
-        grid.setSpacing(8)
+        grid.setSpacing(12)
+        grid.setContentsMargins(10, 15, 10, 15)
+        grid.setVerticalSpacing(12)
+        grid.setHorizontalSpacing(15)
         
         label_font = QFont()
         label_font.setPointSize(11)
@@ -314,12 +364,15 @@ class TelemetryPanel(QWidget):
         group.setFont(group_font)
         
         grid = QGridLayout()
-        grid.setSpacing(8)
+        grid.setSpacing(12)  # Increased from 8 for more vertical spacing
+        grid.setContentsMargins(10, 15, 10, 15)  # Add margins inside the group
+        grid.setVerticalSpacing(15)  # Extra vertical spacing between rows
+        grid.setHorizontalSpacing(20)  # More horizontal spacing between columns
         
         label_font = QFont()
-        label_font.setPointSize(10)
+        label_font.setPointSize(11)  # Slightly larger
         value_font = QFont()
-        value_font.setPointSize(10)
+        value_font.setPointSize(11)  # Slightly larger
         value_font.setBold(True)
         
         # Safety Score
@@ -329,6 +382,7 @@ class TelemetryPanel(QWidget):
         self.score_safety_label = QLabel("--")
         self.score_safety_label.setFont(value_font)
         self.score_safety_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.score_safety_label.setMinimumWidth(60)  # Ensure enough width
         grid.addWidget(self.score_safety_label, 0, 1)
         
         # Energy Score
@@ -338,6 +392,7 @@ class TelemetryPanel(QWidget):
         self.score_energy_label = QLabel("--")
         self.score_energy_label.setFont(value_font)
         self.score_energy_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.score_energy_label.setMinimumWidth(60)
         grid.addWidget(self.score_energy_label, 1, 1)
         
         # Progress Score
@@ -347,6 +402,7 @@ class TelemetryPanel(QWidget):
         self.score_progress_label = QLabel("--")
         self.score_progress_label.setFont(value_font)
         self.score_progress_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.score_progress_label.setMinimumWidth(60)
         grid.addWidget(self.score_progress_label, 2, 1)
         
         # Total Score with progress bar
@@ -360,12 +416,16 @@ class TelemetryPanel(QWidget):
         self.score_total_bar.setValue(0)
         self.score_total_bar.setTextVisible(True)
         self.score_total_bar.setFormat("%p%")
-        self.score_total_bar.setMinimumHeight(25)
+        self.score_total_bar.setMinimumHeight(30)  # Increased from 25
+        self.score_total_bar.setMinimumWidth(100)  # Ensure enough width
         score_bar_font = QFont()
         score_bar_font.setPointSize(10)
         score_bar_font.setBold(True)
         self.score_total_bar.setFont(score_bar_font)
         grid.addWidget(self.score_total_bar, 3, 1)
+        
+        # Set minimum height for the group box
+        group.setMinimumHeight(180)
         
         group.setLayout(grid)
         return group
@@ -428,8 +488,8 @@ class TelemetryPanel(QWidget):
         # Delivery status
         self.delivered_label.setText("✅" if state.delivered else "❌")
         
-        # Trajectory Scores (if available)
-        if trajectory_score:
+        # Trajectory Scores (if available and labels exist)
+        if trajectory_score and self.score_safety_label is not None:
             # Safety score
             safety_pct = int(trajectory_score.safety_score * 100)
             self.score_safety_label.setText(f"{safety_pct}%")
@@ -469,10 +529,13 @@ class TelemetryPanel(QWidget):
                 self.score_total_bar.setStyleSheet("QProgressBar::chunk { background-color: orange; }")
             else:
                 self.score_total_bar.setStyleSheet("QProgressBar::chunk { background-color: red; }")
-        else:
-            # No trajectory score available
+        elif self.score_safety_label is not None:
+            # No trajectory score available but labels exist
             self.score_safety_label.setText("--")
+            self.score_safety_label.setStyleSheet("")
             self.score_energy_label.setText("--")
+            self.score_energy_label.setStyleSheet("")
             self.score_progress_label.setText("--")
+            self.score_progress_label.setStyleSheet("")
             self.score_total_bar.setValue(0)
             self.score_total_bar.setStyleSheet("")
