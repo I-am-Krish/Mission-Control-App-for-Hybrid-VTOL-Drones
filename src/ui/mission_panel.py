@@ -393,8 +393,25 @@ class MissionPanel(QWidget):
             self.waypoint_added.emit(wp)
             self.map_refresh_requested.emit()  # Refresh map to show new waypoint
             
+            # Success feedback
+            QMessageBox.information(
+                self,
+                "Waypoint Added",
+                f"✓ Added waypoint at ({x:.1f}, {y:.1f}, {z:.1f})\n\n"
+                f"Total waypoints: {len(self.mission_data.waypoints)}"
+            )
+            
+            # Clear inputs for next waypoint
+            self.wp_x_input.clear()
+            self.wp_y_input.clear()
+            self.wp_z_input.setText("120")  # Reset to default altitude
+            
         except ValueError:
-            pass  # Invalid input
+            QMessageBox.warning(
+                self,
+                "Invalid Input",
+                "Please enter valid numbers for X, Y, and Z coordinates."
+            )
     
     def add_waypoint_dialog(self):
         """Open dialog to add waypoint"""
