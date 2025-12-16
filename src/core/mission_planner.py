@@ -102,7 +102,7 @@ class MissionPlanner:
                     current_waypoint = self.mission.waypoints[current_waypoint_idx]
                     dist_to_waypoint = state.position.horizontal_distance_to(current_waypoint)
                     
-                    if dist_to_waypoint < 50.0:  # Within 50m of waypoint
+                    if dist_to_waypoint < 10.0:  # Within 10m of waypoint (tight tolerance)
                         # Move to next waypoint
                         current_waypoint_idx += 1
                         state.current_waypoint_index = current_waypoint_idx
