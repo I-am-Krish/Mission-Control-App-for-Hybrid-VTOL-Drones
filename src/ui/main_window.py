@@ -188,6 +188,21 @@ class MissionControlWindow(QMainWindow):
         # Arm/Disarm button
         self.arm_button = QPushButton("ARM")
         self.arm_button.setCheckable(True)
+        self.arm_button.setStyleSheet("""
+            QPushButton {
+                background-color: #197278;
+                color: #EDDDD4;
+                font-weight: bold;
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background-color: #1A8289;
+            }
+            QPushButton:checked {
+                background-color: #4CAF50;
+                color: white;
+            }
+        """)
         self.arm_button.clicked.connect(self.toggle_arm)
         toolbar.addWidget(self.arm_button)
         
@@ -195,17 +210,49 @@ class MissionControlWindow(QMainWindow):
         
         # Start Mission button
         start_btn = QPushButton("START MISSION")
+        start_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #197278;
+                color: #EDDDD4;
+                font-weight: bold;
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background-color: #1A8289;
+            }
+        """)
         start_btn.clicked.connect(self.start_mission)
         toolbar.addWidget(start_btn)
         
         # RTL button
         rtl_btn = QPushButton("RETURN TO HOME")
+        rtl_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #772E25;
+                color: #EDDDD4;
+                font-weight: bold;
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background-color: #8A3529;
+            }
+        """)
         rtl_btn.clicked.connect(self.return_to_home)
         toolbar.addWidget(rtl_btn)
         
         # Emergency Land button
         emergency_btn = QPushButton("EMERGENCY LAND")
-        emergency_btn.setStyleSheet("background-color: #cc0000;")
+        emergency_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #C44536;
+                color: #EDDDD4;
+                font-weight: bold;
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background-color: #D44F3C;
+            }
+        """)
         emergency_btn.clicked.connect(self.emergency_land)
         toolbar.addWidget(emergency_btn)
         
