@@ -299,8 +299,15 @@ class MissionPlanner:
         desired_vel: np.ndarray
     ) -> np.ndarray:
         """
-        Balanced obstacle avoidance - avoid obstacles while staying on course
-        Uses moderate repulsion from obstacles with strong waypoint attraction
+        Advanced obstacle avoidance with lookahead prediction and tangential navigation.
+        Based on fixed-wing UAV avoidance logic with early detection and smooth maneuvering.
+        
+        Algorithm:
+        1. Predict future position based on current velocity (5 second lookahead)
+        2. Check if future position will intersect with obstacles/NFZ
+        3. If collision predicted, calculate tangential avoidance vector
+        4. Blend avoidance with path-following to stay on course
+        5. Modulate speed based on proximity to obstacles
         """
         pos = state.position.to_array()
         vel_mag = np.linalg.norm(desired_vel)
@@ -310,161 +317,207 @@ class MissionPlanner:
         
         vel_dir = desired_vel / vel_mag
         
-        # Total force accumulator (repulsion + attraction)
-        total_force = np.array([0.0, 0.0, 0.0])
+        # LOOKAHEAD PREDICTION - predict position 5 seconds ahead
+        lookahead_time = 5.0  # seconds
+        future_pos = pos + desired_vel * lookahead_time
         
-        # REPULSIVE FORCES from obstacles (moderate strength)
+        # Track if avoidance is needed
+        avoidance_needed = False
+        avoidance_vector = np.array([0.0, 0.0, 0.0])
+        speed_reduction_factor = 1.0  # 1.0 = full speed, 0.5 = half speed
+        
+        # OBSTACLE AVOIDANCE - Check all obstacles with lookahead
         for obs in self.mission.obstacles:
             obs_pos = obs.position.to_array()
-            to_obstacle = obs_pos - pos
             
-            # Full 3D distance to obstacle surface
-            dist_3d = np.linalg.norm(to_obstacle)
-            dist_to_surface = dist_3d - obs.radius
+            # Safety margin and turn radius for smooth avoidance
+            safety_margin = 50.0  # meters
+            turn_radius = 100.0   # meters for smooth arcs
+            detection_radius = obs.radius + safety_margin + turn_radius
             
-            # Check altitude overlap
+            # Check altitude overlap first (skip if well above/below)
             altitude_diff = abs(pos[2] - obs.position.z)
-            if altitude_diff > obs.radius + 100:  # If well above/below, skip
+            if altitude_diff > obs.radius + 100:
                 continue
             
-            # Only apply repulsion if within influence zone (reduced from 500m to 250m)
-            influence_distance = 250  # Meters - shorter influence for tighter paths
+            # Distance from FUTURE position to obstacle center
+            to_obs_future = obs_pos - future_pos
+            dist_future = np.linalg.norm(to_obs_future)
             
-            if dist_to_surface < influence_distance:
+            # Distance from CURRENT position to obstacle
+            to_obs_current = obs_pos - pos
+            dist_current = np.linalg.norm(to_obs_current)
+            
+            # Check if we're approaching the obstacle (future closer than current)
+            if dist_future < detection_radius:
+                avoidance_needed = True
                 state.obstacle_detected = True
                 
-                # Calculate repulsion direction (away from obstacle)
-                if dist_3d > 0.1:
-                    repulsion_dir = -to_obstacle / dist_3d
+                # Calculate tangential avoidance direction
+                # Direction away from obstacle center
+                if dist_current > 0.1:
+                    repulsion_dir = -to_obs_current / dist_current
                 else:
-                    # If exactly at obstacle center, push in opposite of velocity
                     repulsion_dir = -vel_dir
                 
-                # Moderate repulsion strength - just enough to avoid collision
-                if dist_to_surface < obs.radius:  # Inside obstacle!
-                    strength = 8.0  # Strong but not excessive
-                elif dist_to_surface < 30:  # Very close
-                    strength = 5.0
-                elif dist_to_surface < 60:  # Close
-                    strength = 3.0
-                elif dist_to_surface < 100:  # Near
-                    strength = 1.5
-                else:  # Distant but still in influence
-                    strength = 100.0 / max(10.0, dist_to_surface)
+                # Calculate influence based on proximity (0=far, 1=very close)
+                influence = max(0.0, (detection_radius - dist_future) / detection_radius)
                 
-                # Apply repulsive force (keep it horizontal for smooth flight)
-                repulsion_force = repulsion_dir * strength
-                repulsion_force[2] = 0  # Zero out vertical - maintain altitude in cruise
+                # Tangential avoidance: rotate repulsion by 90 degrees for smooth arc
+                # This makes the drone go AROUND the obstacle, not just away from it
+                repulsion_gain = 0.4  # Tuning parameter (0.2-0.5 range)
+                angle_offset = repulsion_gain * influence * (np.pi / 2)  # Up to 90 degrees
                 
-                total_force += repulsion_force
+                # Rotate the repulsion direction (2D rotation in XY plane)
+                cos_angle = np.cos(angle_offset)
+                sin_angle = np.sin(angle_offset)
+                rotated_x = repulsion_dir[0] * cos_angle - repulsion_dir[1] * sin_angle
+                rotated_y = repulsion_dir[0] * sin_angle + repulsion_dir[1] * cos_angle
+                
+                tangential_dir = np.array([rotated_x, rotated_y, 0.0])
+                
+                # Strength based on proximity
+                if dist_future < obs.radius + safety_margin:
+                    strength = 3.0 * influence  # Strong avoidance when very close
+                else:
+                    strength = 1.5 * influence  # Moderate avoidance when approaching
+                
+                avoidance_vector += tangential_dir * strength
+                
+                # Reduce speed when avoiding obstacles
+                speed_reduction_factor = min(speed_reduction_factor, 0.6)  # Max 40% reduction
+
         
-        # REPULSIVE FORCES from No-Fly Zones (stronger than obstacles)
+        # NO-FLY ZONE AVOIDANCE - Stronger avoidance than regular obstacles
         for nfz in self.mission.no_fly_zones:
             nfz_pos = nfz.position.to_array()
-            to_nfz = nfz_pos - pos
             
-            dist_3d = np.linalg.norm(to_nfz)
-            dist_to_surface = dist_3d - nfz.radius
+            # Larger safety margins for NFZ
+            safety_margin = 50.0
+            turn_radius = 100.0
+            detection_radius = nfz.radius + safety_margin + turn_radius
             
+            # Check altitude overlap
             altitude_diff = abs(pos[2] - nfz.position.z)
             if altitude_diff > nfz.radius + 200:
                 continue
             
-            influence_distance = 300  # NFZ has larger influence (reduced from 600m)
+            # Distance from FUTURE position to NFZ center
+            to_nfz_future = nfz_pos - future_pos
+            dist_future = np.linalg.norm(to_nfz_future)
             
-            if dist_to_surface < influence_distance:
+            # Distance from CURRENT position to NFZ
+            to_nfz_current = nfz_pos - pos
+            dist_current = np.linalg.norm(to_nfz_current)
+            
+            if dist_future < detection_radius:
+                avoidance_needed = True
                 state.geofence_violation = True
                 
-                if dist_3d > 0.1:
-                    repulsion_dir = -to_nfz / dist_3d
+                # Calculate tangential avoidance (stronger for NFZ)
+                if dist_current > 0.1:
+                    repulsion_dir = -to_nfz_current / dist_current
                 else:
                     repulsion_dir = -vel_dir
                 
-                # NFZ repulsion is stronger but not excessive
-                if dist_to_surface < nfz.radius:
-                    strength = 12.0  # Strong if inside NFZ
-                elif dist_to_surface < 50:
-                    strength = 8.0
-                elif dist_to_surface < 100:
-                    strength = 5.0
+                # Higher influence for no-fly zones
+                influence = max(0.0, (detection_radius - dist_future) / detection_radius)
+                
+                # Stronger tangential rotation for NFZ
+                repulsion_gain = 0.5  # Higher than obstacles (0.5 vs 0.4)
+                angle_offset = repulsion_gain * influence * (np.pi / 2)
+                
+                # 2D rotation
+                cos_angle = np.cos(angle_offset)
+                sin_angle = np.sin(angle_offset)
+                rotated_x = repulsion_dir[0] * cos_angle - repulsion_dir[1] * sin_angle
+                rotated_y = repulsion_dir[0] * sin_angle + repulsion_dir[1] * cos_angle
+                
+                tangential_dir = np.array([rotated_x, rotated_y, 0.0])
+                
+                # Stronger avoidance for NFZ
+                if dist_future < nfz.radius + safety_margin:
+                    strength = 5.0 * influence  # Very strong when inside
                 else:
-                    strength = 200.0 / max(10.0, dist_to_surface)
+                    strength = 2.5 * influence  # Strong when approaching
                 
-                repulsion_force = repulsion_dir * strength
-                repulsion_force[2] = 0  # Zero out vertical - maintain altitude
+                avoidance_vector += tangential_dir * strength
                 
-                total_force += repulsion_force
+                # Stronger speed reduction for NFZ
+                speed_reduction_factor = min(speed_reduction_factor, 0.5)  # Max 50% reduction
+
         
-        # STRONG ATTRACTIVE FORCE toward target waypoint - keeps drone on track
+        # PATH ATTRACTION - Strong pull toward target to stay on course
+        path_attraction = np.array([0.0, 0.0, 0.0])
         if state.target_position:
             to_target = state.target_position.to_array() - pos
-            to_target[2] = 0  # Keep attraction horizontal
+            to_target[2] = 0  # Keep horizontal
             dist_to_target = np.linalg.norm(to_target)
             
             if dist_to_target > 1.0:
-                # Strong attraction to waypoint - balances repulsion
-                attraction_dir = to_target / dist_to_target
+                # Normalize direction to target
+                target_dir = to_target / dist_to_target
                 
-                # Scale attraction based on distance - stronger when far from waypoint
-                if dist_to_target > 200:
-                    attraction_strength = 8.0  # Strong pull when far off course
-                elif dist_to_target > 100:
-                    attraction_strength = 6.0
-                elif dist_to_target > 50:
+                # Strong attraction that increases with distance from path
+                # This keeps the drone on track even while avoiding
+                if avoidance_needed:
+                    # When avoiding, increase path attraction to counterbalance
                     attraction_strength = 4.0
                 else:
+                    # Normal path following
                     attraction_strength = 2.0
                 
-                total_force += attraction_dir * attraction_strength
+                path_attraction = target_dir * attraction_strength
         
-        # BOUNDARY CONSTRAINT - prevent going too far off the map
-        # Map bounds: X(0-6000), Y(-200-1000)
+        # BOUNDARY CONSTRAINTS - Prevent going off map edges
         boundary_force = np.array([0.0, 0.0, 0.0])
         
-        # X boundaries (0 to 6000m)
-        if pos[0] < 200:  # Too close to left edge
-            boundary_force[0] = 5.0 * (200 - pos[0]) / 200.0
-        elif pos[0] > 5800:  # Too close to right edge
-            boundary_force[0] = -5.0 * (pos[0] - 5800) / 200.0
+        # X boundaries (200m to 5800m)
+        if pos[0] < 200:
+            boundary_force[0] = 3.0 * (200 - pos[0]) / 200.0
+        elif pos[0] > 5800:
+            boundary_force[0] = -3.0 * (pos[0] - 5800) / 200.0
         
-        # Y boundaries (-200 to 1000m)
-        if pos[1] < 0:  # Too close to bottom edge
-            boundary_force[1] = 5.0 * (0 - pos[1]) / 200.0
-        elif pos[1] > 800:  # Too close to top edge
-            boundary_force[1] = -5.0 * (pos[1] - 800) / 200.0
+        # Y boundaries (0m to 800m)
+        if pos[1] < 0:
+            boundary_force[1] = 3.0 * abs(pos[1]) / 200.0
+        elif pos[1] > 800:
+            boundary_force[1] = -3.0 * (pos[1] - 800) / 200.0
         
-        total_force += boundary_force
-        
-        # Apply total force to modify velocity
-        if np.linalg.norm(total_force) > 0.01:
-            # Combine desired velocity with force field - reduced influence
-            # Force field modifies direction while trying to maintain speed
-            modified_vel = desired_vel + total_force * vel_mag * 0.3  # Reduced from 0.5
+        # COMBINE ALL FORCES
+        if avoidance_needed:
+            # When avoiding: blend avoidance vector with path attraction
+            # Avoidance gets 60%, path attraction gets 40%
+            combined_direction = avoidance_vector * 0.6 + path_attraction * 0.4 + boundary_force
             
-            # Limit maximum deviation to maintain reasonable paths
-            modified_mag = np.linalg.norm(modified_vel)
-            if modified_mag > 0.1:
-                # Scale to maintain original speed
-                modified_vel = (modified_vel / modified_mag) * vel_mag
-                
-                # Ensure the path stays reasonably close to original direction
-                original_dir = desired_vel / vel_mag
-                new_dir = modified_vel / vel_mag
-                
-                # Check if we're deviating too much from target direction
-                dot_product = np.dot(original_dir, new_dir)
-                if dot_product < 0.3:  # Too much deviation (changed from 0)
-                    # Blend more conservatively to stay on course
-                    modified_vel = desired_vel * 0.8 + modified_vel * 0.2
-                    modified_mag = np.linalg.norm(modified_vel)
-                    if modified_mag > 0.1:
-                        modified_vel = (modified_vel / modified_mag) * vel_mag
+            # Normalize the combined direction
+            combined_mag = np.linalg.norm(combined_direction)
+            if combined_mag > 0.1:
+                combined_direction = combined_direction / combined_mag
+            else:
+                combined_direction = vel_dir  # Fallback to original direction
             
-            return modified_vel
+            # Apply speed reduction during avoidance
+            adjusted_speed = vel_mag * speed_reduction_factor
+            
+            # Create final velocity with reduced speed
+            final_velocity = combined_direction * adjusted_speed
+            
+            # Maintain vertical component from desired velocity (altitude hold)
+            final_velocity[2] = desired_vel[2]
+            
+            return final_velocity
         else:
-            state.obstacle_detected = False
-            state.geofence_violation = False
-            return desired_vel
+            # No avoidance needed - just apply small boundary correction if needed
+            boundary_mag = np.linalg.norm(boundary_force)
+            if boundary_mag > 0.1:
+                # Small nudge toward safe area
+                corrected_vel = desired_vel.copy()
+                corrected_vel[:2] += boundary_force[:2] * 0.3  # Gentle correction
+                return corrected_vel
+            else:
+                # Free and clear - follow desired path exactly
+                return desired_vel
     
     def _update_battery(self, state: UAVState, mode: FlightMode, dt: float):
         """
