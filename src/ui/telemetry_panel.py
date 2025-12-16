@@ -63,6 +63,10 @@ class TelemetryPanel(QWidget):
         status_group = self.create_status_group()
         layout.addWidget(status_group)
         
+        # Trajectory score group
+        score_group = self.create_trajectory_score_group()
+        layout.addWidget(score_group)
+        
         # Note: Mini-map is added in __init__ after UI setup
         
         layout.addStretch()
@@ -301,7 +305,72 @@ class TelemetryPanel(QWidget):
         group.setLayout(grid)
         return group
     
-    def update_state(self, state: UAVState):
+    def create_trajectory_score_group(self) -> QGroupBox:
+        """Create trajectory scoring display group"""
+        group = QGroupBox("Trajectory Score")
+        group_font = QFont()
+        group_font.setPointSize(12)
+        group_font.setBold(True)
+        group.setFont(group_font)
+        
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        
+        label_font = QFont()
+        label_font.setPointSize(10)
+        value_font = QFont()
+        value_font.setPointSize(10)
+        value_font.setBold(True)
+        
+        # Safety Score
+        safety_lbl = QLabel("Safety:")
+        safety_lbl.setFont(label_font)
+        grid.addWidget(safety_lbl, 0, 0)
+        self.score_safety_label = QLabel("--")
+        self.score_safety_label.setFont(value_font)
+        self.score_safety_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        grid.addWidget(self.score_safety_label, 0, 1)
+        
+        # Energy Score
+        energy_lbl = QLabel("Energy:")
+        energy_lbl.setFont(label_font)
+        grid.addWidget(energy_lbl, 1, 0)
+        self.score_energy_label = QLabel("--")
+        self.score_energy_label.setFont(value_font)
+        self.score_energy_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        grid.addWidget(self.score_energy_label, 1, 1)
+        
+        # Progress Score
+        progress_lbl = QLabel("Progress:")
+        progress_lbl.setFont(label_font)
+        grid.addWidget(progress_lbl, 2, 0)
+        self.score_progress_label = QLabel("--")
+        self.score_progress_label.setFont(value_font)
+        self.score_progress_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        grid.addWidget(self.score_progress_label, 2, 1)
+        
+        # Total Score with progress bar
+        total_lbl = QLabel("Total:")
+        total_lbl.setFont(label_font)
+        grid.addWidget(total_lbl, 3, 0)
+        
+        # Total score bar
+        self.score_total_bar = QProgressBar()
+        self.score_total_bar.setRange(0, 100)
+        self.score_total_bar.setValue(0)
+        self.score_total_bar.setTextVisible(True)
+        self.score_total_bar.setFormat("%p%")
+        self.score_total_bar.setMinimumHeight(25)
+        score_bar_font = QFont()
+        score_bar_font.setPointSize(10)
+        score_bar_font.setBold(True)
+        self.score_total_bar.setFont(score_bar_font)
+        grid.addWidget(self.score_total_bar, 3, 1)
+        
+        group.setLayout(grid)
+        return group
+    
+    def update_state(self, state: UAVState, trajectory_score=None):
         """Update all telemetry displays with new state"""
         
         # Position
@@ -358,3 +427,52 @@ class TelemetryPanel(QWidget):
         
         # Delivery status
         self.delivered_label.setText("✅" if state.delivered else "❌")
+        
+        # Trajectory Scores (if available)
+        if trajectory_score:
+            # Safety score
+            safety_pct = int(trajectory_score.safety_score * 100)
+            self.score_safety_label.setText(f"{safety_pct}%")
+            if safety_pct >= 70:
+                self.score_safety_label.setStyleSheet("color: green;")
+            elif safety_pct >= 40:
+                self.score_safety_label.setStyleSheet("color: orange;")
+            else:
+                self.score_safety_label.setStyleSheet("color: red;")
+            
+            # Energy score
+            energy_pct = int(trajectory_score.energy_score * 100)
+            self.score_energy_label.setText(f"{energy_pct}%")
+            if energy_pct >= 70:
+                self.score_energy_label.setStyleSheet("color: green;")
+            elif energy_pct >= 50:
+                self.score_energy_label.setStyleSheet("color: orange;")
+            else:
+                self.score_energy_label.setStyleSheet("color: red;")
+            
+            # Progress score
+            progress_pct = int(trajectory_score.progress_score * 100)
+            self.score_progress_label.setText(f"{progress_pct}%")
+            if progress_pct >= 70:
+                self.score_progress_label.setStyleSheet("color: green;")
+            elif progress_pct >= 40:
+                self.score_progress_label.setStyleSheet("color: orange;")
+            else:
+                self.score_progress_label.setStyleSheet("color: red;")
+            
+            # Total score bar
+            total_pct = int(trajectory_score.total_score * 100)
+            self.score_total_bar.setValue(total_pct)
+            if total_pct >= 70:
+                self.score_total_bar.setStyleSheet("QProgressBar::chunk { background-color: green; }")
+            elif total_pct >= 50:
+                self.score_total_bar.setStyleSheet("QProgressBar::chunk { background-color: orange; }")
+            else:
+                self.score_total_bar.setStyleSheet("QProgressBar::chunk { background-color: red; }")
+        else:
+            # No trajectory score available
+            self.score_safety_label.setText("--")
+            self.score_energy_label.setText("--")
+            self.score_progress_label.setText("--")
+            self.score_total_bar.setValue(0)
+            self.score_total_bar.setStyleSheet("")

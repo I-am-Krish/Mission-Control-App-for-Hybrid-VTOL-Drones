@@ -179,8 +179,8 @@ class MissionPlanner:
         
         # Normal mode transitions
         if current_mode == FlightMode.IDLE:
-            if state.is_armed:
-                return FlightMode.VTOL_TAKEOFF
+            # Stay in IDLE even when armed - require explicit takeoff command
+            # Takeoff is initiated by START MISSION or manual TAKEOFF button
             return FlightMode.IDLE
         
         elif current_mode == FlightMode.VTOL_TAKEOFF:

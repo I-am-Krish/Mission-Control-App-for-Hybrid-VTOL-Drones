@@ -314,8 +314,11 @@ class MissionControlWindow(QMainWindow):
     
     def update_telemetry(self):
         """Update telemetry displays"""
-        # Update telemetry panel
-        self.telemetry_panel.update_state(self.uav_state)
+        # Get trajectory score from mission planner if available
+        trajectory_score = getattr(self.mission_planner, 'last_trajectory_score', None)
+        
+        # Update telemetry panel with trajectory scores
+        self.telemetry_panel.update_state(self.uav_state, trajectory_score)
         
         # Update 3D map
         self.map_widget.update_uav_position(self.uav_state.position)
