@@ -97,12 +97,16 @@ class MissionPlanner:
                 # Follow waypoints in order
                 current_waypoint_idx = getattr(state, 'current_waypoint_index', 0)
                 
+                logger.debug(f"Waypoint navigation: {len(self.mission.waypoints)} waypoints, currently at index {current_waypoint_idx}")
+                
                 # Check if reached current waypoint
                 if current_waypoint_idx < len(self.mission.waypoints):
                     current_waypoint = self.mission.waypoints[current_waypoint_idx]
                     dist_to_waypoint = state.position.horizontal_distance_to(current_waypoint)
                     
-                    if dist_to_waypoint < 10.0:  # Within 10m of waypoint (tight tolerance)
+                    logger.debug(f"Distance to waypoint {current_waypoint_idx}: {dist_to_waypoint:.1f}m at ({current_waypoint.x}, {current_waypoint.y})")
+                    
+                    if dist_to_waypoint < 5.0:  # Within 5m of waypoint (tight tolerance)
                         # Move to next waypoint
                         current_waypoint_idx += 1
                         state.current_waypoint_index = current_waypoint_idx
@@ -115,6 +119,7 @@ class MissionPlanner:
                             self.mission.waypoints[current_waypoint_idx].y,
                             self.config.TAKEOFF_ALTITUDE
                         )
+                        logger.debug(f"Target set to waypoint {current_waypoint_idx}: ({target.x}, {target.y})")
                     else:
                         # All waypoints reached, go to delivery point
                         target = Position(
@@ -122,6 +127,7 @@ class MissionPlanner:
                             self.mission.delivery_point.y,
                             self.config.TAKEOFF_ALTITUDE
                         )
+                        logger.info("All waypoints reached, heading to delivery point")
                 else:
                     # All waypoints passed, go to delivery
                     target = Position(
@@ -136,6 +142,7 @@ class MissionPlanner:
                     self.mission.delivery_point.y,
                     self.config.TAKEOFF_ALTITUDE
                 )
+                logger.debug(f"No waypoints defined, heading directly to delivery: ({target.x}, {target.y})")
         else:
             # RETURN JOURNEY - go directly home
             target = Position(

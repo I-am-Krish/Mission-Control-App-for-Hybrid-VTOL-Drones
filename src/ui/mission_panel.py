@@ -166,6 +166,7 @@ class MissionPanel(QWidget):
         
         add_obstacle_btn = QPushButton("➕ Add Obstacle")
         add_obstacle_btn.clicked.connect(self.add_custom_obstacle)
+        add_obstacle_btn.setStyleSheet("background-color: #8AFFFF; color: #6B6B6B; font-weight: bold;")
         add_obs_layout.addWidget(add_obstacle_btn, 4, 0, 1, 2)
         
         add_obs_group.setLayout(add_obs_layout)
@@ -211,9 +212,9 @@ class MissionPanel(QWidget):
         self.nfz_radius_input = QLineEdit("300")
         add_nfz_layout.addWidget(self.nfz_radius_input, 3, 1)
         
-        add_nfz_btn = QPushButton("⛔ Add No-Fly Zone")
+        add_nfz_btn = QPushButton("➕ Add No-Fly Zone")
         add_nfz_btn.clicked.connect(self.add_custom_nfz)
-        add_nfz_btn.setStyleSheet("background-color: #F44336; color: white; font-weight: bold;")
+        add_nfz_btn.setStyleSheet("background-color: #FF8A8A; color: white; font-weight: bold;")
         add_nfz_layout.addWidget(add_nfz_btn, 4, 0, 1, 2)
         
         add_nfz_section.setLayout(add_nfz_layout)
