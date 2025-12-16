@@ -1,5 +1,5 @@
 """
-Mission Planner - Core flight logic ported from MATLAB
+Mission Planner - Core flight logic with trajectory scoring and multi-objective optimization
 Handles autonomous navigation, obstacle avoidance, and energy management
 """
 
@@ -17,10 +17,23 @@ from src.config import UAVConfig
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class TrajectoryScore:
+    """Scoring metrics for trajectory evaluation"""
+    safety_score: float      # 0-1: Higher = safer (distance from obstacles)
+    energy_score: float      # 0-1: Higher = more efficient
+    progress_score: float    # 0-1: Higher = closer to goal
+    total_score: float       # Weighted combination
+    recommended_speed: float # Optimal speed for this trajectory
+
+
 class MissionPlanner:
     """
-    Autonomous mission planning and execution
-    Ported from VTOL_UAV_Delivery.m and VTOL_UAV_Delivery_new.m
+    Autonomous mission planning with multi-objective optimization
+    Features:
+    - Trajectory scoring (safety, energy, progress)
+    - Speed optimization based on battery and distance
+    - Lookahead prediction with tangential avoidance
     """
     
     def __init__(self, mission_data: MissionData, config: UAVConfig = UAVConfig(), custom_params: dict = None):
@@ -33,6 +46,11 @@ class MissionPlanner:
         self.drone_weight = 2.5
         self.payload_weight = 0.5
         
+        # Multi-objective optimization weights (sum to 1.0)
+        self.WEIGHT_SAFETY = 0.5    # Safety is most important
+        self.WEIGHT_ENERGY = 0.3    # Energy efficiency second
+        self.WEIGHT_PROGRESS = 0.2  # Progress toward goal third
+        
         # Apply custom parameters if provided
         self.custom_params = custom_params or {}
         if custom_params:
@@ -41,6 +59,7 @@ class MissionPlanner:
         # State tracking
         self.current_time = 0.0
         self.mission_complete = False
+        self.last_trajectory_score = None
     
     def _apply_custom_parameters(self, params: dict):
         """Apply custom UAV parameters to override config defaults"""
@@ -247,11 +266,14 @@ class MissionPlanner:
                 direction = to_target / np.linalg.norm(to_target)
                 direction[2] = 0  # Zero out vertical component
                 
+                # SPEED OPTIMIZATION - Calculate energy-efficient cruise speed
+                optimal_speed = self._calculate_optimal_speed(state, horizontal_dist)
+                
                 # Add altitude correction to maintain cruise altitude
                 altitude_error = self.config.TAKEOFF_ALTITUDE - state.position.z
                 vertical_correction = np.clip(altitude_error * 0.5, -2.0, 2.0)  # Gentle altitude hold
                 
-                velocity = direction * self.config.CRUISE_SPEED
+                velocity = direction * optimal_speed
                 velocity[2] = vertical_correction  # Maintain altitude
                 return velocity
             else:
@@ -293,21 +315,172 @@ class MissionPlanner:
         
         return np.array([0.0, 0.0, 0.0])
     
+    def _calculate_optimal_speed(self, state: UAVState, distance_to_target: float) -> float:
+        """
+        Calculate energy-efficient cruise speed based on:
+        - Battery level (conserve when low)
+        - Distance to target (faster when far, slower when close)
+        - Wind conditions (adjust for headwind/tailwind)
+        
+        Returns: Optimal speed in m/s
+        """
+        base_speed = self.config.CRUISE_SPEED
+        
+        # 1. BATTERY-BASED ADJUSTMENT
+        battery_percent = (state.battery.remaining_mah / state.battery.capacity_mah) * 100
+        
+        if battery_percent < 20:
+            # Critical battery - reduce to minimum safe speed
+            battery_factor = 0.7  # 70% of normal speed
+        elif battery_percent < 40:
+            # Low battery - moderate reduction
+            battery_factor = 0.85  # 85% of normal speed
+        else:
+            # Good battery - full speed
+            battery_factor = 1.0
+        
+        # 2. DISTANCE-BASED ADJUSTMENT
+        # Slow down when approaching target for smooth landing transition
+        if distance_to_target < 100:
+            # Within 100m - start slowing down
+            distance_factor = 0.6 + (distance_to_target / 100) * 0.4  # 60-100%
+        elif distance_to_target > 1000:
+            # Far away - maintain high speed for efficiency
+            distance_factor = 1.0
+        else:
+            # Medium distance - normal speed
+            distance_factor = 0.9
+        
+        # 3. WIND COMPENSATION (if wind data available)
+        wind_factor = 1.0
+        if self.wind_speed > 0:
+            # Simplified wind effect (increase speed in headwind, decrease in tailwind)
+            wind_factor = 1.0 + (self.wind_speed / 50.0)  # Up to 20% adjustment
+            wind_factor = np.clip(wind_factor, 0.8, 1.2)
+        
+        # COMBINE ALL FACTORS
+        optimal_speed = base_speed * battery_factor * distance_factor * wind_factor
+        
+        # Ensure speed stays within safe limits
+        min_safe_speed = base_speed * 0.5  # Never below 50% of cruise speed
+        max_safe_speed = base_speed * 1.0  # Never above nominal cruise
+        
+        return np.clip(optimal_speed, min_safe_speed, max_safe_speed)
+    
+    def _score_trajectory(
+        self, 
+        state: UAVState, 
+        velocity: np.ndarray,
+        avoidance_active: bool,
+        clearance_distance: float
+    ) -> TrajectoryScore:
+        """
+        Score current trajectory based on multiple objectives:
+        - Safety: Distance from obstacles (higher = safer)
+        - Energy: Speed efficiency and battery consumption
+        - Progress: Movement toward goal
+        
+        Returns: TrajectoryScore with individual and total scores
+        """
+        # 1. SAFETY SCORE (0-1, higher is safer)
+        # Based on clearance distance from nearest obstacle
+        if clearance_distance < 10:
+            safety_score = 0.0  # Dangerously close
+        elif clearance_distance < 50:
+            safety_score = 0.3 + (clearance_distance - 10) / 40 * 0.4  # 0.3-0.7
+        elif clearance_distance < 150:
+            safety_score = 0.7 + (clearance_distance - 50) / 100 * 0.2  # 0.7-0.9
+        else:
+            safety_score = 1.0  # Safe distance
+        
+        # Penalty for active avoidance maneuvers
+        if avoidance_active:
+            safety_score *= 0.8  # 20% reduction when actively avoiding
+        
+        # 2. ENERGY SCORE (0-1, higher is more efficient)
+        speed = np.linalg.norm(velocity)
+        
+        # Energy consumption roughly proportional to speed^2 for air resistance
+        # But too slow is also inefficient (more time = more hover energy)
+        optimal_cruise = self.config.CRUISE_SPEED
+        
+        if speed < optimal_cruise * 0.5:
+            # Too slow - inefficient hovering
+            energy_score = speed / (optimal_cruise * 0.5)  # 0-1
+        elif speed > optimal_cruise:
+            # Too fast - wasting energy on air resistance
+            excess = speed - optimal_cruise
+            energy_score = max(0.5, 1.0 - (excess / optimal_cruise))  # Penalty
+        else:
+            # In optimal range
+            energy_score = 0.8 + (1.0 - abs(speed - optimal_cruise) / optimal_cruise) * 0.2
+        
+        # Battery consideration
+        battery_percent = (state.battery.remaining_mah / state.battery.capacity_mah) * 100
+        if battery_percent < 30:
+            energy_score *= (battery_percent / 30)  # Penalty for low battery
+        
+        # 3. PROGRESS SCORE (0-1, higher is better progress)
+        # Measure alignment with target direction
+        if state.target_position:
+            to_target = state.target_position.to_array() - state.position.to_array()
+            to_target_norm = np.linalg.norm(to_target)
+            
+            if to_target_norm > 0.1 and speed > 0.1:
+                # Dot product of velocity and target direction
+                vel_norm = velocity / speed
+                target_norm = to_target / to_target_norm
+                alignment = np.dot(vel_norm, target_norm)
+                
+                # Convert to 0-1 score (alignment ranges from -1 to 1)
+                progress_score = (alignment + 1.0) / 2.0  # 0 to 1
+            else:
+                progress_score = 0.5  # Neutral when at target or stopped
+        else:
+            progress_score = 0.5  # Neutral when no target
+        
+        # 4. CALCULATE TOTAL SCORE
+        total_score = (
+            self.WEIGHT_SAFETY * safety_score +
+            self.WEIGHT_ENERGY * energy_score +
+            self.WEIGHT_PROGRESS * progress_score
+        )
+        
+        # Recommend speed adjustment based on scores
+        if safety_score < 0.5:
+            # Low safety - recommend slower speed
+            recommended_speed = speed * 0.6
+        elif energy_score < 0.6:
+            # Poor energy efficiency - adjust toward optimal
+            recommended_speed = optimal_cruise * 0.85
+        else:
+            # Good balance - maintain current speed
+            recommended_speed = speed
+        
+        return TrajectoryScore(
+            safety_score=safety_score,
+            energy_score=energy_score,
+            progress_score=progress_score,
+            total_score=total_score,
+            recommended_speed=recommended_speed
+        )
+    
     def _apply_obstacle_avoidance(
         self, 
         state: UAVState, 
         desired_vel: np.ndarray
     ) -> np.ndarray:
         """
-        Advanced obstacle avoidance with lookahead prediction and tangential navigation.
-        Based on fixed-wing UAV avoidance logic with early detection and smooth maneuvering.
+        Advanced obstacle avoidance with lookahead prediction, tangential navigation,
+        and trajectory scoring for multi-objective optimization.
         
         Algorithm:
         1. Predict future position based on current velocity (5 second lookahead)
         2. Check if future position will intersect with obstacles/NFZ
         3. If collision predicted, calculate tangential avoidance vector
-        4. Blend avoidance with path-following to stay on course
-        5. Modulate speed based on proximity to obstacles
+        4. Score trajectory (safety, energy, progress)
+        5. Blend avoidance with path-following to stay on course
+        6. Modulate speed based on proximity and trajectory score
         """
         pos = state.position.to_array()
         vel_mag = np.linalg.norm(desired_vel)
@@ -321,10 +494,11 @@ class MissionPlanner:
         lookahead_time = 5.0  # seconds
         future_pos = pos + desired_vel * lookahead_time
         
-        # Track if avoidance is needed
+        # Track if avoidance is needed and minimum clearance distance
         avoidance_needed = False
         avoidance_vector = np.array([0.0, 0.0, 0.0])
         speed_reduction_factor = 1.0  # 1.0 = full speed, 0.5 = half speed
+        min_clearance = float('inf')  # Track minimum distance to obstacles
         
         # OBSTACLE AVOIDANCE - Check all obstacles with lookahead
         for obs in self.mission.obstacles:
@@ -386,6 +560,9 @@ class MissionPlanner:
                 
                 # Reduce speed when avoiding obstacles
                 speed_reduction_factor = min(speed_reduction_factor, 0.6)  # Max 40% reduction
+                
+                # Track minimum clearance for trajectory scoring
+                min_clearance = min(min_clearance, dist_current - obs.radius)
 
         
         # NO-FLY ZONE AVOIDANCE - Stronger avoidance than regular obstacles
@@ -441,6 +618,14 @@ class MissionPlanner:
                 else:
                     strength = 2.5 * influence  # Strong when approaching
                 
+                avoidance_vector += tangential_dir * strength
+                
+                # Stronger speed reduction for NFZ
+                speed_reduction_factor = min(speed_reduction_factor, 0.5)  # Max 50% reduction
+                
+                # Track minimum clearance for trajectory scoring
+                min_clearance = min(min_clearance, dist_current - nfz.radius)
+
                 avoidance_vector += tangential_dir * strength
                 
                 # Stronger speed reduction for NFZ
@@ -506,8 +691,28 @@ class MissionPlanner:
             # Maintain vertical component from desired velocity (altitude hold)
             final_velocity[2] = desired_vel[2]
             
+            # TRAJECTORY SCORING - Evaluate the avoidance maneuver
+            clearance = max(10.0, min_clearance) if min_clearance != float('inf') else 200.0
+            self.last_trajectory_score = self._score_trajectory(
+                state, final_velocity, True, clearance
+            )
+            
+            # Optional: Apply speed recommendation from trajectory score
+            if self.last_trajectory_score.total_score < 0.6:
+                # Low score - use recommended speed adjustment
+                speed_mag = np.linalg.norm(final_velocity[:2])
+                if speed_mag > 0.1:
+                    speed_adjust = self.last_trajectory_score.recommended_speed / speed_mag
+                    final_velocity[:2] *= np.clip(speed_adjust, 0.5, 1.0)
+            
             return final_velocity
         else:
+            # No avoidance needed - score the straight path
+            clearance = max(10.0, min_clearance) if min_clearance != float('inf') else 200.0
+            self.last_trajectory_score = self._score_trajectory(
+                state, desired_vel, False, clearance
+            )
+            
             # No avoidance needed - just apply small boundary correction if needed
             boundary_mag = np.linalg.norm(boundary_force)
             if boundary_mag > 0.1:
