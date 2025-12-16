@@ -174,8 +174,8 @@ class MissionPlanner:
         if state.battery.is_critical(self.config.BATTERY_CRITICAL):
             return FlightMode.EMERGENCY_LAND
         
-        if state.geofence_violation:
-            return FlightMode.EMERGENCY_RTL
+        # Note: Removed EMERGENCY_RTL on geofence_violation
+        # Now the drone will navigate around NFZ using avoidance system
         
         # Normal mode transitions
         if current_mode == FlightMode.IDLE:
@@ -208,8 +208,8 @@ class MissionPlanner:
             return FlightMode.CRUISE
         
         elif current_mode == FlightMode.VTOL_LAND:
-            # Check if landed
-            if state.position.z < 2.0:  # On ground
+            # Check if landed (touchdown to ground level)
+            if state.position.z < 0.5:  # On ground (near 0 altitude)
                 if state.delivered and state.position.horizontal_distance_to(state.home_position) < 20.0:
                     # Landed at home after delivery - MISSION COMPLETE
                     state.mission_phase = MissionPhase.COMPLETE
@@ -234,7 +234,7 @@ class MissionPlanner:
             return FlightMode.EMERGENCY_RTL
         
         elif current_mode == FlightMode.EMERGENCY_LAND:
-            if state.position.z < 2.0:
+            if state.position.z < 0.5:  # Touchdown to ground
                 return FlightMode.IDLE
             return FlightMode.EMERGENCY_LAND
         
@@ -384,18 +384,18 @@ class MissionPlanner:
         """
         # 1. SAFETY SCORE (0-1, higher is safer)
         # Based on clearance distance from nearest obstacle
-        if clearance_distance < 10:
-            safety_score = 0.0  # Dangerously close
+        if clearance_distance < 20:
+            safety_score = 0.1  # Dangerously close
         elif clearance_distance < 50:
-            safety_score = 0.3 + (clearance_distance - 10) / 40 * 0.4  # 0.3-0.7
-        elif clearance_distance < 150:
-            safety_score = 0.7 + (clearance_distance - 50) / 100 * 0.2  # 0.7-0.9
+            safety_score = 0.4 + (clearance_distance - 20) / 30 * 0.3  # 0.4-0.7
+        elif clearance_distance < 100:
+            safety_score = 0.7 + (clearance_distance - 50) / 50 * 0.2  # 0.7-0.9
         else:
-            safety_score = 1.0  # Safe distance
+            safety_score = 0.9 + min(clearance_distance - 100, 100) / 1000  # 0.9-1.0
         
         # Penalty for active avoidance maneuvers
         if avoidance_active:
-            safety_score *= 0.8  # 20% reduction when actively avoiding
+            safety_score *= 0.7  # 30% reduction when actively avoiding
         
         # 2. ENERGY SCORE (0-1, higher is more efficient)
         speed = np.linalg.norm(velocity)
@@ -404,38 +404,60 @@ class MissionPlanner:
         # But too slow is also inefficient (more time = more hover energy)
         optimal_cruise = self.config.CRUISE_SPEED
         
-        if speed < optimal_cruise * 0.5:
-            # Too slow - inefficient hovering
-            energy_score = speed / (optimal_cruise * 0.5)  # 0-1
-        elif speed > optimal_cruise:
-            # Too fast - wasting energy on air resistance
-            excess = speed - optimal_cruise
-            energy_score = max(0.5, 1.0 - (excess / optimal_cruise))  # Penalty
+        if speed < 1.0:
+            # Nearly stationary or hovering
+            energy_score = 0.3  # Low score for hovering (uses power but no progress)
+        elif speed < optimal_cruise * 0.7:
+            # Too slow - somewhat inefficient
+            energy_score = 0.4 + (speed / (optimal_cruise * 0.7)) * 0.3  # 0.4-0.7
+        elif speed <= optimal_cruise * 1.1:
+            # In optimal range - most efficient
+            deviation = abs(speed - optimal_cruise) / optimal_cruise
+            energy_score = 0.9 - deviation * 0.2  # 0.7-0.9
         else:
-            # In optimal range
-            energy_score = 0.8 + (1.0 - abs(speed - optimal_cruise) / optimal_cruise) * 0.2
+            # Too fast - wasting energy on air resistance
+            excess_ratio = (speed - optimal_cruise * 1.1) / optimal_cruise
+            energy_score = max(0.3, 0.7 - excess_ratio * 0.4)  # 0.3-0.7
         
-        # Battery consideration
+        # Battery consideration - reduce score when battery is low
         battery_percent = (state.battery.remaining_mah / state.battery.capacity_mah) * 100
-        if battery_percent < 30:
-            energy_score *= (battery_percent / 30)  # Penalty for low battery
+        if battery_percent < 20:
+            energy_score *= 0.5  # Significant penalty for critical battery
+        elif battery_percent < 40:
+            energy_score *= 0.7 + (battery_percent - 20) / 20 * 0.3  # 0.7-1.0 scaling
         
         # 3. PROGRESS SCORE (0-1, higher is better progress)
-        # Measure alignment with target direction
+        # Measure alignment with target direction and actual progress
         if state.target_position:
             to_target = state.target_position.to_array() - state.position.to_array()
-            to_target_norm = np.linalg.norm(to_target)
+            to_target_norm = np.linalg.norm(to_target[:2])  # Horizontal distance only
             
-            if to_target_norm > 0.1 and speed > 0.1:
-                # Dot product of velocity and target direction
-                vel_norm = velocity / speed
-                target_norm = to_target / to_target_norm
-                alignment = np.dot(vel_norm, target_norm)
+            if to_target_norm > 5.0 and speed > 1.0:  # En route to target
+                # Dot product of velocity and target direction (horizontal only)
+                vel_horizontal = np.array([velocity[0], velocity[1], 0.0])
+                speed_horizontal = np.linalg.norm(vel_horizontal)
                 
-                # Convert to 0-1 score (alignment ranges from -1 to 1)
-                progress_score = (alignment + 1.0) / 2.0  # 0 to 1
+                if speed_horizontal > 0.1:
+                    vel_norm = vel_horizontal / speed_horizontal
+                    target_norm = np.array([to_target[0], to_target[1], 0.0]) / to_target_norm
+                    alignment = np.dot(vel_norm, target_norm)
+                    
+                    # Convert to 0-1 score with better scaling
+                    # alignment: -1 (opposite) to 1 (aligned)
+                    if alignment > 0.8:  # Well aligned
+                        progress_score = 0.8 + alignment * 0.2  # 0.8-1.0
+                    elif alignment > 0.5:  # Reasonable alignment
+                        progress_score = 0.5 + (alignment - 0.5) * 0.6  # 0.5-0.8
+                    elif alignment > 0:
+                        progress_score = 0.3 + alignment * 0.4  # 0.3-0.5
+                    else:  # Moving away or perpendicular
+                        progress_score = max(0.1, 0.3 + alignment * 0.2)  # 0.1-0.3
+                else:
+                    progress_score = 0.2  # Hovering
+            elif to_target_norm <= 5.0:  # Near target
+                progress_score = 0.8  # Good - at destination
             else:
-                progress_score = 0.5  # Neutral when at target or stopped
+                progress_score = 0.3  # Moving but too slow
         else:
             progress_score = 0.5  # Neutral when no target
         
@@ -447,15 +469,24 @@ class MissionPlanner:
         )
         
         # Recommend speed adjustment based on scores
-        if safety_score < 0.5:
+        if safety_score < 0.4:
             # Low safety - recommend slower speed
-            recommended_speed = speed * 0.6
-        elif energy_score < 0.6:
-            # Poor energy efficiency - adjust toward optimal
-            recommended_speed = optimal_cruise * 0.85
+            recommended_speed = min(speed, optimal_cruise * 0.7)
+        elif safety_score < 0.6:
+            # Moderate safety concern
+            recommended_speed = min(speed, optimal_cruise * 0.85)
+        elif energy_score < 0.5:
+            # Poor energy efficiency - move toward optimal
+            if speed < optimal_cruise:
+                recommended_speed = optimal_cruise * 0.9
+            else:
+                recommended_speed = optimal_cruise
+        elif battery_percent < 30:
+            # Low battery - conservative speed
+            recommended_speed = optimal_cruise * 0.8
         else:
-            # Good balance - maintain current speed
-            recommended_speed = speed
+            # Good balance - maintain near optimal
+            recommended_speed = optimal_cruise * 0.95
         
         return TrajectoryScore(
             safety_score=safety_score,
