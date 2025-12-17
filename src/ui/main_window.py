@@ -16,7 +16,7 @@ import logging
 from datetime import datetime
 
 from src.config import UIConfig
-from src.core.uav_state import UAVState, MissionData, FlightMode
+from src.core.uav_state import UAVState, MissionData, FlightMode, MissionPhase
 from src.core.mission_planner import MissionPlanner
 
 from src.ui.telemetry_panel import TelemetryPanel

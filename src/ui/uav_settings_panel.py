@@ -44,6 +44,26 @@ class UAVSettingsPanel(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         
+        # Apply styling for spin boxes
+        self.setStyleSheet("""
+            QDoubleSpinBox, QSpinBox {
+                background-color: #073642;
+                color: #93a1a1;
+                border: 1px solid #268bd2;
+                border-radius: 3px;
+                padding: 5px;
+                font-size: 11pt;
+            }
+            QDoubleSpinBox::up-button, QSpinBox::up-button {
+                width: 0px;
+                border: none;
+            }
+            QDoubleSpinBox::down-button, QSpinBox::down-button {
+                width: 0px;
+                border: none;
+            }
+        """)
+        
         # Create scroll area
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -73,7 +93,7 @@ class UAVSettingsPanel(QWidget):
         layout.addWidget(mission_group)
         
         # Apply button
-        apply_btn = QPushButton("✅ Apply Settings")
+        apply_btn = QPushButton("Apply Settings")
         apply_btn.setStyleSheet("""
             QPushButton {
                 background-color: #268bd2;
@@ -91,7 +111,7 @@ class UAVSettingsPanel(QWidget):
         layout.addWidget(apply_btn)
         
         # Reset button
-        reset_btn = QPushButton("🔄 Reset to Defaults")
+        reset_btn = QPushButton("Reset to Defaults")
         reset_btn.setStyleSheet("""
             QPushButton {
                 background-color: #cb4b16;
@@ -200,7 +220,7 @@ class UAVSettingsPanel(QWidget):
     
     def create_mission_points_group(self) -> QGroupBox:
         """Create mission points configuration group"""
-        group = QGroupBox("📍 Mission Points")
+        group = QGroupBox("📍Mission Points")
         layout = QGridLayout()
         
         # Home position
