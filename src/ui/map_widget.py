@@ -44,24 +44,6 @@ class MapWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        # Add toolbar for waypoint controls
-        toolbar = QHBoxLayout()
-        
-        self.add_waypoint_btn = QPushButton("➕ Click Map to Add Waypoint")
-        self.add_waypoint_btn.setCheckable(True)
-        self.add_waypoint_btn.clicked.connect(self.toggle_waypoint_mode)
-        toolbar.addWidget(self.add_waypoint_btn)
-        
-        clear_waypoints_btn = QPushButton("�️ Clear Custom Waypoints")
-        clear_waypoints_btn.clicked.connect(self.clear_custom_waypoints)
-        toolbar.addWidget(clear_waypoints_btn)
-        
-        self.waypoint_info_label = QLabel("")
-        toolbar.addWidget(self.waypoint_info_label)
-        
-        toolbar.addStretch()
-        layout.addLayout(toolbar)
-        
         # Create matplotlib figure
         self.figure = Figure(figsize=(16, 12), facecolor='#2d2d2d')  # Extra large figure size
         self.canvas = FigureCanvas(self.figure)
